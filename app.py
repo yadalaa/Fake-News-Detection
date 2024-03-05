@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 import re
 import nltk
+nltk.download('stopwords')
+nltk.download('punkt')  # You might also need to download the punkt tokenizer
+import streamlit as st
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction.text import CountVectorizer
