@@ -39,7 +39,7 @@ classifier = LogisticRegression(random_state=0)
 classifier.fit(X, y)
 
 # Streamlit app
-st.title("Fake News Classifier")
+st.title("Fake News Detection")
 
 # Text input for prediction
 user_input = st.text_area("Enter the news title:")
