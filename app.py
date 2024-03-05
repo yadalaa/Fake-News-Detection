@@ -8,7 +8,7 @@ nltk.download('punkt')  # You might also need to download the punkt tokenizer
 import streamlit as st
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer  # Change here
 from sklearn.model_selection import train_test_split
 
 from sklearn.linear_model import LogisticRegression
@@ -25,7 +25,7 @@ def preprocess_text(text):
     text = [ps.stem(word) for word in text if not word in set(stopwords.words('english'))]
     return ' '.join(text)
 
-# Load the model and CountVectorizer
+# Load the model and TfidfVectorizer  # Change here
 fake = pd.read_csv("Fake.csv")
 true = pd.read_csv("True.csv")
 fake["temp"] = 1
@@ -33,8 +33,8 @@ true["temp"] = 0
 df = pd.concat([fake, true]).reset_index(drop=True)
 X = df['title'].apply(preprocess_text)
 y = df['temp'].values
-countv = CountVectorizer(max_features=5000)
-X = countv.fit_transform(X).toarray()
+tfidf_vectorizer = TfidfVectorizer(max_features=2000)  # Change here
+X = tfidf_vectorizer.fit_transform(X).toarray()  # Change here
 classifier = LogisticRegression(random_state=0)
 classifier.fit(X, y)
 
@@ -48,8 +48,8 @@ if user_input:
     # Preprocess user input
     processed_input = preprocess_text(user_input)
 
-    # Transform user input using CountVectorizer
-    input_arr = countv.transform([processed_input]).toarray()
+    # Transform user input using TfidfVectorizer  # Change here
+    input_arr = tfidf_vectorizer.transform([processed_input]).toarray()  # Change here
 
     # Make prediction
     prediction = classifier.predict(input_arr)
@@ -64,5 +64,3 @@ if user_input:
 
     st.subheader("Confidence Level:")
     st.write(f"{confidence[0] * 100:.2f}%")
-
-
