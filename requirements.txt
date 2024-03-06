@@ -7,3 +7,4 @@ nltk==3.8.1
 streamlit==1.31.1
 seaborn==0.12.2
 matplotlib==3.8.0
+wordcloud==1.9.2
