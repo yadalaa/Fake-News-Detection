@@ -1,66 +1,104 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import re
-import nltk
-nltk.download('stopwords')
-nltk.download('punkt')  # You might also need to download the punkt tokenizer
-import streamlit as st
+import numpy
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
-from sklearn.feature_extraction.text import TfidfVectorizer  # Change here
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
+import string
+# Ignore warnings
+import warnings
+warnings.filterwarnings('ignore')
 
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-# Function to preprocess text
-def preprocess_text(text):
-    ps = PorterStemmer()
-    text = re.sub('[^a-zA-Z]', ' ', text)
-    text = text.lower()
-    text = text.split()
-    text = [ps.stem(word) for word in text if not word in set(stopwords.words('english'))]
-    return ' '.join(text)
-
-# Load the model and TfidfVectorizer  # Change here
+# Load data
 fake = pd.read_csv("Fake.csv")
 true = pd.read_csv("True.csv")
-fake["temp"] = 1
-true["temp"] = 0
-df = pd.concat([fake, true]).reset_index(drop=True)
-X = df['title'].apply(preprocess_text)
-y = df['temp'].values
-tfidf_vectorizer = TfidfVectorizer(max_features=2000)  # Change here
-X = tfidf_vectorizer.fit_transform(X).toarray()  # Change here
-classifier = LogisticRegression(random_state=0)
-classifier.fit(X, y)
+
+# Target variable for fake news
+fake['temp'] = 0
+
+# Target variable for true news
+true['temp'] = 1
+
+# Concatenating and dropping for fake news
+fake['news'] = fake['title'] + fake['text']
+fake = fake.drop(['title', 'text'], axis=1)
+
+# Concatenating and dropping for true news
+true['news'] = true['title'] + true['text']
+true = true.drop(['title', 'text'], axis=1)
+
+# Rearranging the columns
+fake = fake[['subject', 'date', 'news', 'temp']]
+true = true[['subject', 'date', 'news', 'temp']]
+
+frames = [fake, true]
+news_dataset = pd.concat(frames)
+
+clean_news = news_dataset.copy()
+
+def review_cleaning(text):
+    text = str(text).lower()
+    text = re.sub('\[.*?\]', '', text)
+    text = re.sub('https?://\S+|www\.\S+', '', text)
+    text = re.sub('<.*?>+', '', text)
+    text = re.sub('[%s]' % re.escape(string.punctuation), '', text)
+    text = re.sub('\n', '', text)
+    text = re.sub('\w*\d\w*', '', text)
+    return text
+
+clean_news['news'] = clean_news['news'].apply(lambda x: review_cleaning(x))
+
+stop = stopwords.words('english')
+clean_news['news'] = clean_news['news'].apply(lambda x: ' '.join([word for word in x.split() if word not in (stop)]))
+
+tfidf_vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(2, 2))
+X = tfidf_vectorizer.fit_transform(clean_news['news'])
+y = clean_news['temp']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
+
+knn = KNeighborsClassifier(n_neighbors=3)
+knn.fit(X_train, y_train)
 
 # Streamlit app
-st.title("Fake News Detection")
+st.title('Fake News Detector')
+input_text = st.text_area('Enter news article')
 
-# Text input for prediction
-user_input = st.text_area("Enter the news title:")
+def predict_fake_news(input_text):
+    ps = PorterStemmer()
+    stop_words = set(stopwords.words('english'))
 
-if user_input:
-    # Preprocess user input
-    processed_input = preprocess_text(user_input)
+    # Perform stemming on the input text
+    input_text = re.sub('[^a-zA-Z]', ' ', input_text)
+    input_text = input_text.lower()
+    input_text = input_text.split()
+    input_text = [ps.stem(word) for word in input_text if word not in stop_words]
+    input_text = ' '.join(input_text)
 
-    # Transform user input using TfidfVectorizer  # Change here
-    input_arr = tfidf_vectorizer.transform([processed_input]).toarray()  # Change here
+    # Vectorize the input text
+    input_data = tfidf_vectorizer.transform([input_text])
 
-    # Make prediction
-    prediction = classifier.predict(input_arr)
-    confidence = classifier.predict_proba(input_arr)[:, 1]
+    # Make prediction and get confidence levels
+    prediction = knn.predict(input_data)
+    confidence_levels = knn.predict_proba(input_data)[0]  # Probabilities for both classes
 
-    # Display prediction and confidence
+    return prediction[0], confidence_levels[0], confidence_levels[1]
+
+if input_text:
+    prediction, confidence_fake, confidence_true = predict_fake_news(input_text)
     st.subheader("Prediction:")
-    if prediction[0] == 1:
-        st.write("News is Fake")
-    else:
-        st.write("News is Real")
-
-    st.subheader("Confidence Level:")
-    st.write(f"{confidence[0] * 100:.2f}%")
+    if prediction == 1:
+        st.write('The news is real.')
+        st.subheader("Confidence Level for True News:")
+        st.write(f"{confidence_true * 100:.2f}%")
+        st.subheader("Confidence Level for Fake News:")
+        st.write(f"{confidence_fake * 100:.2f}%")
+    elif prediction == 0:
+        st.write('The news is fake.')
+        st.subheader("Confidence Level for True News:")
+        st.write(f"{confidence_true * 100:.2f}%")
+        st.subheader("Confidence Level for Fake News:")
+        st.write(f"{confidence_fake * 100:.2f}%")
